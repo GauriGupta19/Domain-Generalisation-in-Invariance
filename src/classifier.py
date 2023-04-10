@@ -22,7 +22,7 @@ class MLP(nn.Module):
         x=F.softmax(self.fc2(x))
         return x
 
-def train_nn(model, enocder_model, train_dataset, test_dataset, batch_size=32, num_epochs=NUM_EPOCHS, lr=LR, criterion=nn.CrossEntropyLoss()):
+def train_nn(model, encoder_model, train_dataset, test_dataset, batch_size=32, num_epochs=NUM_EPOCHS, lr=LR, criterion=nn.CrossEntropyLoss()):
     device = 'cpu'
     TrainResult = {'train_losses': [], 'val_accs': [], 'train_accs': []}
     
@@ -37,10 +37,10 @@ def train_nn(model, enocder_model, train_dataset, test_dataset, batch_size=32, n
         train_accs = 0
         for datapoint in tqdm(train_loader):
             X, y = datapoint[0].to(device), datapoint[1].to(device)
-            z_mu, z_sigma = enocder_model.encode(X)
+            z_mu, z_sigma = encoder_model.encode(X)
             z_sample = z_mu + torch.randn_like(z_mu)*z_sigma
             optimizer.zero_grad()
-            output = model(z_sample[:, enocder_model.coord:].to(device))
+            output = model(z_sample[:, encoder_model.coord:].to(device))
             loss = criterion(output, y)
             total_train += loss.item()
             train_accs += torch.sum(torch.argmax(output, dim=-1)==y).item()/output.size(dim=0)
@@ -56,10 +56,10 @@ def train_nn(model, enocder_model, train_dataset, test_dataset, batch_size=32, n
         with torch.no_grad():
             for idx, datapoint in enumerate(test_loader):
                 X, y = datapoint[0].to(device), datapoint[1].to(device)
-                z_mu, z_sigma = enocder_model.encode(X)
+                z_mu, z_sigma = encoder_model.encode(X)
                 z_sample = z_mu + torch.randn_like(z_mu)*z_sigma
                 optimizer.zero_grad()
-                output = model(z_sample[:, enocder_model.coord:].to(device))
+                output = model(z_sample[:, encoder_model.coord:].to(device))
                 total_val += torch.sum(torch.argmax(output, dim=-1)==y).item()/output.size(dim=0)
         TrainResult['val_accs'].append(total_val/len(test_loader))
         print("Epoch {}: Train Loss={} Train Acc={} Validation Acc={}%".format(epoch, TrainResult['train_losses'][-1], TrainResult['train_accs'][-1]*100, TrainResult['val_accs'][-1]*100))

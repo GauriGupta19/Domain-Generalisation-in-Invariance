@@ -13,8 +13,8 @@ from torchvision.utils import make_grid
 import warnings
 warnings.filterwarnings("ignore", module="torchvision.datasets")
 
-from models import *
-from functions import *
+from src.models import *
+from src.functions import *
 
 class SVItrainer:
     """

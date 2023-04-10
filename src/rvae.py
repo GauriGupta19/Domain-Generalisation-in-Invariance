@@ -13,16 +13,17 @@ import matplotlib.pyplot as plt
 
 import warnings
 warnings.filterwarnings("ignore", module="torchvision.datasets")
-from models import *
-from functions import *
+
+from src.models import *
+from src.functions import *
 
 class rVAE(nn.Module):
     """
-    Variational autoencoder with rotational and/or transaltional invariance
+    Variational autoencoder with rotational and/or translational invariance
     """
     def __init__(self,
                  in_dim: Tuple[int],
-                 latent_dim: int = 2,
+                 latent_dim: int = 10,
                  coord: int = 3,
                  num_classes: int = 0,
                  hidden_dim_e: int = 128,
@@ -32,7 +33,7 @@ class rVAE(nn.Module):
                  activation: str = "tanh",
                  softplus_sd: bool = True,
                  sigmoid_out: bool = True,
-                 seed: int = 1,
+                 seed: int = 0,
                  **kwargs
                  ) -> None:
         """

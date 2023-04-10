@@ -1,5 +1,4 @@
 from typing import Optional, Tuple, Type, Union
-
 import numpy as np
 import torch
 import torch.nn as nn
