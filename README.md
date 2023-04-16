@@ -7,3 +7,14 @@ The description of different files in the repository can be found below:
 * ```sample_complexity.ipynb``` - The sample complextiy analysis between Vanilla VAE and Rotationally-invariant VAE (rVAE). Here, rVAE refers to the RotInvVAE model discussed in the paper
 > The skeleton code for the experiments has been borrowed from [Explicitly disentangling image content from translation and rotation with spatial-VAE](https://proceedings.neurips.cc/paper/2019/hash/5a38a1eb24d99699159da10e71c45577-Abstract.html)
 
+## Citation
+```
+@misc{gupta2023domain,
+      title={Domain Generalization In Robust Invariant Representation}, 
+      author={Gauri Gupta and Ritvik Kapila and Keshav Gupta and Ramesh Raskar},
+      year={2023},
+      eprint={2304.03431},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
