@@ -22,7 +22,7 @@ class rVAE(nn.Module):
     Variational autoencoder with rotational and/or translational invariance
     """
     def __init__(self,
-                 in_dim: Tuple[int],
+                 in_dim: Tuple[int] = (28, 28),
                  latent_dim: int = 10,
                  coord: int = 3,
                  num_classes: int = 0,
@@ -33,25 +33,51 @@ class rVAE(nn.Module):
                  activation: str = "tanh",
                  softplus_sd: bool = True,
                  sigmoid_out: bool = True,
-                 seed: int = 0,
+                 seed: int = None,
                  **kwargs
                  ) -> None:
         """
-        Initializes rVAE's modules and parameters
+        Initializes rVAE's modules and parameters.
+        
+        Args:
+            in_dim: 
+                Shape of input data. Defaults to (28, 28)
+            latent_dim:
+                default 10
+            coord:
+                Specifies the type of invariant VAE.
+                - 0: Vanilla VAE
+                - 1: Rotation Invariant
+                - 2: Translation Invariant
+                - 3: Rotation + Translation Invariant
+            num_classes:
+                Only for training class-conditioned VAE.
+                Specifies number of classes to label.
+            hidden_dim_e: default 128
+            hidden_dim_d: default 128
+            activation: default tanh
+            softplus_sd: default True
+            sigmoid_out: default True
+            seed: default None
+                
         """
-        super(rVAE, self).__init__()
+        super().__init__()
         pyro.clear_param_store()
-        set_deterministic_mode(seed)
+        if seed is not None:
+            set_deterministic_mode(seed)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
         self.encoder_net = fcEncoderNet(
             in_dim, latent_dim+coord, hidden_dim_e,
             num_layers_e, activation, softplus_sd)
+        
         if coord not in [0, 1, 2, 3]:
             raise ValueError("'coord' argument must be 0, 1, 2 or 3")
         dnet = rDecoderNet if coord in [1, 2, 3] else fcDecoderNet
         self.decoder_net = dnet(
             in_dim, latent_dim+num_classes, hidden_dim_d,
             num_layers_d, activation, sigmoid_out)
+        
         self.z_dim = latent_dim + coord
         self.coord = coord
         self.num_classes = num_classes
@@ -64,36 +90,52 @@ class rVAE(nn.Module):
               y: Optional[torch.Tensor] = None,
               **kwargs: float) -> torch.Tensor:
         """
-        Defines the model p(x|z)p(z)
+        Defines the Pyro model p(x|z)p(z).
+        
+        Args:
+            x: 
+                Batch input data
+            y: 
+                Labels (for class conditional VAE)
         """
         # register PyTorch module `decoder_net` with Pyro
         pyro.module("decoder_net", self.decoder_net)
+        
         # KLD scale factor (see e.g. https://openreview.net/pdf?id=Sy2fzU9gl)
         beta = kwargs.get("scale_factor", 1.)
+        
         reshape_ = torch.prod(torch.tensor(x.shape[1:])).item()
         with pyro.plate("data", x.shape[0]):
+            
             # setup hyperparameters for prior p(z)
             z_loc = x.new_zeros(torch.Size((x.shape[0], self.z_dim)))
             z_scale = x.new_ones(torch.Size((x.shape[0], self.z_dim)))
+            
             # sample from prior (value will be sampled by guide when computing the ELBO)
             with pyro.poutine.scale(scale=beta):
                 z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
-            if self.coord > 0:  # rotationally- and/or translationaly-invariant mode
-                # Split latent variable into parts for rotation
-                # and/or translation and image content
+            
+            # rotationally- and/or translationaly-invariant mode
+            if self.coord > 0:  
+                
+                # Split latent variable into parts for transformation and image content
                 phi, dx, z = self.split_latent(z)
                 if torch.sum(dx) != 0:
                     dx = (dx * self.dx_prior).unsqueeze(1)
+                    
                 # transform coordinate grid
                 grid = self.grid.expand(x.shape[0], *self.grid.shape)
                 x_coord_prime = transform_coordinates(grid, phi, dx)
+                
             # Add class label (if any)
             if y is not None:
                 y = to_onehot(y, self.num_classes)
                 z = torch.cat([z, y], dim=-1)
-            # decode the latent code z together with the transformed coordiantes (if any)
+                
+            # decode the latent code z together with the transformed coordinates (if any)
             dec_args = (x_coord_prime, z) if self.coord else (z,)
             loc_img = self.decoder_net(*dec_args)
+            
             # score against actual images ("binary cross-entropy loss")
             pyro.sample(
                 "obs", dist.Bernoulli(loc_img.view(-1, reshape_), validate_args=False).to_event(1),
@@ -104,23 +146,34 @@ class rVAE(nn.Module):
               y: Optional[torch.Tensor] = None,
               **kwargs: float) -> torch.Tensor:
         """
-        Defines the guide q(z|x)
+        Defines the Pyro guide q(z|x).
+        
+        Args:
+            x: 
+                Batch input data
+            y: 
+                Labels (for class conditional VAE)
         """
         # register PyTorch module `encoder_net` with Pyro
         pyro.module("encoder_net", self.encoder_net)
+        
         # KLD scale factor (see e.g. https://openreview.net/pdf?id=Sy2fzU9gl)
         beta = kwargs.get("scale_factor", 1.)
+        
         with pyro.plate("data", x.shape[0]):
+            
             # use the encoder to get the parameters used to define q(z|x)
             z_loc, z_scale = self.encoder_net(x)
+            
             # sample the latent code z
             with pyro.poutine.scale(scale=beta):
                 pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
 
     def split_latent(self, z: torch.Tensor) -> Tuple[torch.Tensor]:
         """
-        Split latent variable into parts for rotation
-        and/or translation and image content
+        Split latent variable into parts for rotation and/or translation 
+        and image content. Depending on self.coord, it truncates and returns
+        the first 0-3 values in z (filling in the blanks with zeroes).
         """
         phi, dx = torch.tensor(0), torch.tensor(0)
         # rotation + translation
@@ -141,7 +194,7 @@ class rVAE(nn.Module):
     def _encode(self, x_new: torch.Tensor, **kwargs: int) -> torch.Tensor:
         """
         Encodes data using a trained inference (encoder) network
-        in a batch-by-batch fashion
+        in a batch-by-batch fashion.
         """
         def inference() -> np.ndarray:
             with torch.no_grad():
@@ -167,7 +220,7 @@ class rVAE(nn.Module):
     def encode(self, x_new: torch.Tensor, **kwargs: int) -> torch.Tensor:
         """
         Encodes data using a trained inference (encoder) network
-        (this is baiscally a wrapper for self._encode)
+        (this is baiscally a wrapper for self._encode).
         """
         if isinstance(x_new, torch.utils.data.DataLoader):
             x_new = train_loader.dataset.tensors[0]
@@ -179,7 +232,7 @@ class rVAE(nn.Module):
     def decode(self, z: torch.Tensor, **kwargs: int) -> torch.Tensor:
         """
         Decodes data using a trained inference (decoder) network
-        in a batch-by-batch fashion
+        in a batch-by-batch fashion.
         """
         def inference() -> np.ndarray:
             with torch.no_grad():
@@ -209,7 +262,7 @@ class rVAE(nn.Module):
 
     def manifold2d(self, d: int, **kwargs: Union[str, int]) -> torch.Tensor:
         """
-        Plots a learned latent manifold in the image space
+        Plots a learned latent manifold in the image space.
         """
         if self.num_classes > 0:
             cls = torch.tensor(kwargs.get("label", 0))

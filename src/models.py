@@ -4,9 +4,16 @@ import torch
 import torch.nn as nn
 
 
-# @title Load neural networks for VAE { form-width: "25%" }
+# Neural networks for VAE 
 
 def set_deterministic_mode(seed: int) -> None:
+    """
+    Sets the random seed for PyTorch and CUDA to ensure that results 
+    are deterministic and reproducible. Returns None.
+
+    Args:
+        seed: The int seed value to use.
+    """
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -21,9 +28,16 @@ def make_fc_layers(in_dim: int,
                    activation: str = "tanh"
                    ) -> Type[nn.Module]:
     """
-    Generates a module with stacked fully-connected (aka dense) layers
+    Generates a module with stacked fully-connected (aka dense) layers.
+    
+    Args:
+        in_dim
+        hidden_dim: default 128
+        num_layers: default 2
+        activation: default tanh
     """
     activations = {"tanh": nn.Tanh, "lrelu": nn.LeakyReLU, "softplus": nn.Softplus}
+    
     fc_layers = []
     for i in range(num_layers):
         hidden_dim_ = in_dim if i == 0 else hidden_dim
@@ -33,23 +47,35 @@ def make_fc_layers(in_dim: int,
     fc_layers = nn.Sequential(*fc_layers)
     return fc_layers
 
-
 class fcEncoderNet(nn.Module):
     """
-    Simple fully-connected inference (encoder) network
+    Simple fully-connected inference (encoder) network.
     """
     def __init__(self,
                  in_dim: Tuple[int],
-                 latent_dim: int = 2,
-                 hidden_dim:int = 128,
+                 latent_dim: int,
+                 hidden_dim: int = 128,
                  num_layers: int = 2,
                  activation: str = 'tanh',
-                 softplus_out: bool = False
+                 softplus_out: bool = True
                  ) -> None:
         """
-        Initializes module parameters
+        Initializes module parameters. Input dimensions are flattened.
+        
+        Args: 
+            in_dim: 
+                tuple with at most 3 elements
+            latent_dim:
+            hidden_dim: 
+                default 128
+            num_layers: 
+                Number of layers between input and latent. default 2
+            activation: 
+                default tanh
+            softplus_out: 
+                default False
         """
-        super(fcEncoderNet, self).__init__()
+        super().__init__()
         if len(in_dim) not in [1, 2, 3]:
             raise ValueError("in_dim must be (h, w), (h, w, c), or (h*w*c,)")
         self.in_dim = torch.prod(torch.tensor(in_dim)).item()
@@ -61,7 +87,7 @@ class fcEncoderNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor]:
         """
-        Forward pass
+        Forward pass.
         """
         x = x.view(-1, self.in_dim)
         x = self.fc_layers(x)
@@ -72,7 +98,7 @@ class fcEncoderNet(nn.Module):
 
 class fcDecoderNet(nn.Module):
     """
-    Standard decoder for VAE
+    Standard fully-connected decoder network.
     """
     def __init__(self,
                  out_dim: Tuple[int],
@@ -80,9 +106,25 @@ class fcDecoderNet(nn.Module):
                  hidden_dim:int = 128,
                  num_layers: int = 2,
                  activation: str = 'tanh',
-                 sigmoid_out: str = True,
+                 sigmoid_out: bool = True,
                  ) -> None:
-        super(fcDecoderNet, self).__init__()
+        """
+        Initializes module parameters. Reshapes to output dimensions.
+        
+        Args: 
+            out_dim: 
+                tuple with at most 3 elements
+            latent_dim
+            hidden_dim: 
+                default 128
+            num_layers: 
+                Number of layers between input and latent. default 2
+            activation: 
+                default tanh
+            sigmoid_out: 
+                default False
+        """
+        super().__init__()
         if len(out_dim) not in [1, 2, 3]:
             raise ValueError("in_dim must be (h, w), (h, w, c), or (h*w*c,)")
         self.reshape = out_dim
@@ -94,6 +136,9 @@ class fcDecoderNet(nn.Module):
         self.activation_out = nn.Sigmoid() if sigmoid_out else lambda x: x
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+        """
         x = self.fc_layers(z)
         x = self.activation_out(self.out(x))
         return x.view(-1, *self.reshape)
@@ -101,7 +146,7 @@ class fcDecoderNet(nn.Module):
 
 class rDecoderNet(nn.Module):
     """
-    Spatial generator (decoder) network with fully-connected layers
+    Spatial generator (decoder) network with fully-connected layers.
     """
     def __init__(self,
                  out_dim: Tuple[int],
@@ -112,30 +157,32 @@ class rDecoderNet(nn.Module):
                  sigmoid_out: str = True
                  ) -> None:
         """
-        Initializes module parameters
+        Initializes module parameters (same as fcEncoderNet).
         """
-        super(rDecoderNet, self).__init__()
+        super().__init__()
         if len(out_dim) not in [1, 2, 3]:
             raise ValueError("in_dim must be (h, w), (h, w, c), or (h*w*c,)")
         self.reshape = out_dim
         out_dim = torch.prod(torch.tensor(out_dim)).item()
-
-        self.coord_latent = coord_latent(latent_dim, hidden_dim)
+        
         self.fc_layers = make_fc_layers(
             hidden_dim, hidden_dim, num_layers, activation)
         self.out = nn.Linear(hidden_dim, 1) # need to generalize to multi-channel (c > 1)
         self.activation_out = nn.Sigmoid() if sigmoid_out else lambda x: x
+        
+        self.coord_latent = coord_latent(latent_dim, hidden_dim)
 
     def forward(self, x_coord: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass
+        Forward pass.
         """
         x = self.coord_latent(x_coord, z)
+        
         x = self.fc_layers(x)
         x = self.activation_out(self.out(x))
         return x.view(-1, *self.reshape)
 
-
+    
 class coord_latent(nn.Module):
     """
     The "spatial" part of the rVAE's decoder that allows for translational
@@ -146,9 +193,14 @@ class coord_latent(nn.Module):
                  out_dim: int,
                  activation_out: bool = True) -> None:
         """
-        Iniitalizes modules parameters
+        Iniitalizes modules parameters.
+        
+        Args:
+            latent_dim
+            out_dim
+            activation_out: tanh if True (default)
         """
-        super(coord_latent, self).__init__()
+        super().__init__()
         self.fc_coord = nn.Linear(2, out_dim)
         self.fc_latent = nn.Linear(latent_dim, out_dim, bias=False)
         self.activation = nn.Tanh() if activation_out else None
@@ -157,7 +209,7 @@ class coord_latent(nn.Module):
                 x_coord: torch.Tensor,
                 z: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass
+        Forward pass.
         """
         batch_dim, n = x_coord.size()[:2]
         x_coord = x_coord.reshape(batch_dim * n, -1)

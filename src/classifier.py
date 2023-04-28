@@ -12,7 +12,7 @@ device = torch.device("cuda")
 
 class MLP(nn.Module):
     def __init__(self, in_channels= 100, out_channels=10, num_hidden=128):
-        super(MLP, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(in_channels,num_hidden)
         self.fc2 = nn.Linear(num_hidden,out_channels)
 

@@ -1,14 +1,24 @@
-from typing import Optional, Tuple, Type, Union
+Wfrom typing import Optional, Tuple, Type, Union
 import numpy as np
 import torch
 import torch.nn as nn
 
 
-# @title Load functions for working with image coordinates and labels { form-width: "25%" }
+# Functions for working with image coordinates and labels
 
 def to_onehot(idx: torch.Tensor, n: int) -> torch.Tensor:
     """
-    One-hot encoding of a label
+    Generates one-hot encodings of labels.
+    
+    Args:
+        idx: 
+            Tensor of labels
+        n: 
+            size of vectors (number of labels)
+    
+    Returns:
+        Tensor of one-hot n-dimensional vector encodings of
+        the labels in idx.
     """
     if torch.max(idx).item() >= n:
         raise AssertionError(
@@ -22,6 +32,9 @@ def to_onehot(idx: torch.Tensor, n: int) -> torch.Tensor:
 
 
 def grid2xy(X1: torch.Tensor, X2: torch.Tensor) -> torch.Tensor:
+    """
+    Helper for imcoordgrid().
+    """
     X = torch.cat((X1[None], X2[None]), 0)
     d0, d1 = X.shape[0], X.shape[1] * X.shape[2]
     X = X.reshape(d0, d1).T
@@ -29,16 +42,51 @@ def grid2xy(X1: torch.Tensor, X2: torch.Tensor) -> torch.Tensor:
 
 
 def imcoordgrid(im_dim: Tuple) -> torch.Tensor:
+    """
+    Generates a list of coordinates for each point on a grid spanning 
+    -1 to 1 in both directions.
+    
+    Args:
+        in_dim: Tuple (x,y) of dimensions of the grid
+    
+    Returns:
+        Tensor of shape (x*y, 2) of each coordinate in the grid.
+    
+    Example:
+        >>> imcoordgrid((4,4))
+        tensor([[-1.0000,  1.0000],
+        [-1.0000,  0.3333],
+        [-1.0000, -0.3333],
+        [-1.0000, -1.0000],
+        [-0.3333,  1.0000],
+        ...
+        [ 1.0000, -1.0000]])
+    """
     xx = torch.linspace(-1, 1, im_dim[0])
     yy = torch.linspace(1, -1, im_dim[1])
     x0, x1 = torch.meshgrid(xx, yy)
     return grid2xy(x0, x1)
 
 
-def transform_coordinates(coord: torch.Tensor,
-                          phi: Union[torch.Tensor, float] = 0,
-                          coord_dx: Union[torch.Tensor, float] = 0,
-                          ) -> torch.Tensor:
+def transform_coordinates(
+    coord: torch.Tensor,
+    phi: Union[torch.Tensor, float] = torch.zeros(1),
+    coord_dx: Union[torch.Tensor, float] = 0,
+    ) -> torch.Tensor:
+    """
+    Transforms coordinates by rotation and translation.
+    
+    Args:
+        coord: 
+            Tensor of coordinates
+        phi: 
+            Angle
+        coord_dx: 
+            Shift
+    
+    Returns:
+        Tensor of translated coordinates
+    """
     if torch.sum(phi) == 0:
         phi = coord.new_zeros(coord.shape[0])
     rotmat_r1 = torch.stack([torch.cos(phi), torch.sin(phi)], 1)

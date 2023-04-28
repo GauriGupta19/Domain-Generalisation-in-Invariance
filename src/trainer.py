@@ -19,19 +19,31 @@ from src.functions import *
 class SVItrainer:
     """
     Stochastic variational inference (SVI) trainer for 
-    unsupervised and class-conditioned variational models
+    unsupervised and class-conditioned variational models.
+    Built on top of pyro.infer.SVI.
     """
     def __init__(self,
                  model: Type[nn.Module],
                  optimizer: Type[optim.PyroOptim] = None,
                  loss: Type[infer.ELBO] = None,
-                 seed: int = 1
+                 seed: int = None
                  ) -> None:
         """
-        Initializes the trainer's parameters
+        Initializes the trainer's parameters.
+        
+        Args:
+            model: 
+                Our VAE
+            optimizer: 
+                default Adam 
+            loss: 
+                default ELBO
+            seed: 
+                default None
         """
         pyro.clear_param_store()
-        set_deterministic_mode(seed)
+        if seed is not None:
+            set_deterministic_mode(seed)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if optimizer is None:
             optimizer = optim.Adam({"lr": 1.0e-3})
@@ -45,19 +57,29 @@ class SVItrainer:
               train_loader: Type[torch.utils.data.DataLoader],
               **kwargs: float) -> float:
         """
-        Trains a single epoch
+        Trains a single epoch. 
+        
+        Args:
+            train_loader: 
+                Our trainset dataloader
+            **kwargs:
+                Passed to SVI.step()
         """
         # initialize loss accumulator
         epoch_loss = 0.
+        
         # do a training epoch over each mini-batch returned by the data loader
         for data in train_loader:
-            if len(data) == 1:  # VAE mode
+                   
+            if len(data) == 1: # VAE mode
                 x = data[0]
                 loss = self.svi.step(x.to(self.device), **kwargs)
-            else:  # VED or cVAE mode
+            
+            else: # VED or cVAE mode
                 x, y = data
                 loss = self.svi.step(
                     x.to(self.device), y.to(self.device), **kwargs)
+                
             # do ELBO gradient and accumulate loss
             epoch_loss += loss
 
@@ -68,9 +90,22 @@ class SVItrainer:
                  **kwargs: float) -> float:
         """
         Evaluates current models state on a single epoch
+        
+        Args:
+            test_loader: 
+                Our testset dataloader
+            **kwargs:
+                Passed to SVI.step()
         """
+
+        # Same as training, but we first freeze our weights.
+#        with torch.no_grad():
+#            test_loss = self.train(test_loader, **kwargs)
+#        return test_loss
+
         # initialize loss accumulator
         test_loss = 0.
+        
         # compute the loss over the entire test set
         with torch.no_grad():
             for data in test_loader:
@@ -81,8 +116,7 @@ class SVItrainer:
                     x, y = data
                     loss = self.svi.step(
                         x.to(self.device), y.to(self.device), **kwargs)
-                test_loss += loss
-
+                test_loss += loss 
         return test_loss / len(test_loader.dataset)
 
     def step(self,
@@ -90,7 +124,16 @@ class SVItrainer:
              test_loader: Optional[Type[torch.utils.data.DataLoader]] = None,
              **kwargs: float) -> None:
         """
-        Single training and (optionally) evaluation step 
+        Single training and (optionally) evaluation step.
+        
+        Args:
+            train_loader: 
+                Our trainset dataloader
+            test_loader: 
+                Our testset dataloader (defaults to None, where 
+                no evaluation will happen).
+            **kwargs:
+                Passed to SVI.step()
         """
         self.loss_history["training_loss"].append(self.train(train_loader,**kwargs))
         if test_loader is not None:
@@ -99,7 +142,7 @@ class SVItrainer:
 
     def print_statistics(self) -> None:
         """
-        Prints training and test (if any) losses for current epoch
+        Prints training and test (if any) losses for current epoch.
         """
         e = self.current_epoch
         if len(self.loss_history["test_loss"]) > 0:
