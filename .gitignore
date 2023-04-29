@@ -1,3 +1,6 @@
+lfw_test_targets.pkl
+lfw_train_targets.pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
