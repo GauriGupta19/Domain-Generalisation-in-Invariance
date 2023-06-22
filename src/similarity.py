@@ -100,6 +100,8 @@ def pair_matching(testset, test_labels, model, coord):
         digits = test_labels, 
         coord = coord)
     
+    # test_labels1, test_labels2 = [t[0] for t in test_labels1 for i in range(3)], [t[0] for t in test_labels2 for i in range(3)] 
+    
     # create same-class different-image data
     mismatched = get_mismatched_data(
         test_data1, test_data2, test_labels1, test_labels2, 
@@ -107,8 +109,8 @@ def pair_matching(testset, test_labels, model, coord):
         diff_image = True)
     
     # labels of ones and zeros
-    positive_labels = torch.ones((test_labels1.size()[0]))
-    negative_labels = torch.zeros((test_labels1.size()[0]))
+    positive_labels = torch.ones((test_data1.size()[0]))
+    negative_labels = torch.zeros((test_data1.size()[0]))
     
     # we are only interested in checking if a pair of two images in the same class (rotated and non-rotated) are same image or not. 
     
@@ -173,6 +175,8 @@ def class_matching(testset, test_labels, model, coord):
         digits = test_labels, 
         coord = coord)
     
+    # test_labels1, test_labels2 = [t[0] for t in test_labels1 for i in range(3)], [t[0] for t in test_labels2 for i in range(3)] 
+    
     # create same-class and different-class data
     same_class = get_mismatched_data(
         test_data1, test_data2, test_labels1, test_labels2, 
@@ -182,8 +186,8 @@ def class_matching(testset, test_labels, model, coord):
         same_label = False)
     
     # labels of ones and zeros
-    positive_labels = torch.ones((test_labels1.size()[0]))
-    negative_labels = torch.zeros((test_labels1.size()[0]))
+    positive_labels = torch.ones((test_data1.size()[0]))
+    negative_labels = torch.zeros((test_data1.size()[0]))
  
 
     # we are only interested in checking if a pair of two images(rotated and non-rotated) are same class or not
