@@ -13,6 +13,8 @@ from src.trainer import *
 
 from tqdm import tqdm
 
+SAVE_DIR = "pad_models"
+
 def train_vae(
     trainset,
     name: str,
@@ -42,7 +44,7 @@ def train_vae(
             - 2: Translation Invariant
             - 3: Rotation + Translation Invariant
         name: 
-            String, saves to path "saved_models/{name}.pkl"
+            String, saves to path "{SAVE_DIR}/{name}.pkl"
         labels: 
             Labels of dataset to train on. Defaults to 0-9.
         batch_size: 
@@ -65,7 +67,7 @@ def train_vae(
     """
     
     if name is not None:
-        path = f"saved_models/{name}.pkl"
+        path = f"{SAVE_DIR}/{name}.pkl"
     elif path is None:
         raise NameError("name or path must be specified!")
     
@@ -117,5 +119,5 @@ def load_vae(name: str, coord: int, **kwargs):
     """
     vae = rVAE(coord = coord, **kwargs)
     trainer = SVItrainer(vae)
-    trainer.load_model(vae, f'saved_models/{name}.pkl')
+    trainer.load_model(vae, f'{SAVE_DIR}/{name}.pkl')
     return vae

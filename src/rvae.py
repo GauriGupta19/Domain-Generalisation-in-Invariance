@@ -22,7 +22,7 @@ class rVAE(nn.Module):
     Variational autoencoder with rotational and/or translational invariance
     """
     def __init__(self,
-                 in_dim: Tuple[int] = (28, 28),
+                 in_dim: Tuple[int] = (56, 56),
                  latent_dim: int = 10,
                  coord: int = 3,
                  num_classes: int = 0,
@@ -41,7 +41,7 @@ class rVAE(nn.Module):
         
         Args:
             in_dim: 
-                Shape of input data. Defaults to (28, 28)
+                Shape of input data. Defaults to (56, 56)
             latent_dim:
                 default 10
             coord:

@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Type, Union
 import numpy as np
 import torch
 from torchvision import datasets, transforms
-from PIL import Image
+from PIL import Image, ImageOps
 from torchvision.transforms import ToTensor
 
 
@@ -12,9 +12,11 @@ def get_mnist_data(
     dataset, 
     digits: Tuple[int] = [0,1,2,3,4,5,6,7,8,9], 
     n_samples: int = None, 
+    total_samples: int = None,
     rotation_range: Tuple[int] = None, 
     translation_range: Tuple[int] = None,
-    coord: int = None
+    coord: int = None, 
+    pad: int = 14
     ) -> Tuple[torch.Tensor]:
     
     """
@@ -28,6 +30,9 @@ def get_mnist_data(
         n_samples: 
             Maximum amount of samples to use from each label. None if 
             no maximum (default).
+        total_samples:
+            Maximum amount of total samples to take. None if no maximum
+            (default).
         rotation_range: 
             Each image is rotated by a random integer degree chosen from 
             the range. Defaults to None (no rotation).
@@ -41,6 +46,8 @@ def get_mnist_data(
             - 1: rotation only
             - 2: translation only
             - 3: rotation + translation
+        pad: 
+            Amount to pad before transformation. Defaults to 14 (doubling size)
     
     Returns:
         Returns a tuple of tensors representing the transformed data, 
@@ -54,6 +61,9 @@ def get_mnist_data(
         rotation_range, translation_range = coord_default(coord)
     
     for i, (im, lbl) in enumerate(dataset):
+        
+        if total_samples is not None and len(data) >= total_samples:
+            break
         if lbl in digits:
             
             if n_samples is not None and count[lbl] >= n_samples:
@@ -61,7 +71,9 @@ def get_mnist_data(
                 
             theta = torch.randint(*rotation_range, (1,)) if rotation_range else torch.zeros((1,))
             dx, dy = np.random.randint(*translation_range, 2) if translation_range else (0,0)
-
+            
+            # im = Image.fromarray(np.pad(im, , constant_values = 120))
+            im = ImageOps.expand(im, border = pad, fill = 0)
             im = im.rotate(theta, translate = (dx, dy), resample=Image.BICUBIC)
 
             data.append(ToTensor()(im))
